@@ -53,6 +53,12 @@ export type ReviewPostResults = {
   skipped: number;
   summaryBody: string | null;
   failures: ReviewPostFailure[];
+  threadFollowUp?: {
+    applied: number;
+    skipped: number;
+    failed: number;
+    failures: string[];
+  };
 };
 
 export interface ReviewTrackingFields {

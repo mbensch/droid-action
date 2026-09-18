@@ -12,6 +12,8 @@ export type ReviewArtifactPaths = {
   diffPath: string;
   commentsPath: string;
   descriptionPath: string;
+  /** GitHub-only snapshot used by the optional review-thread follow-up. */
+  threadsPath?: string;
 };
 
 /**

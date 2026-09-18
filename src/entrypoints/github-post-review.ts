@@ -11,7 +11,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as core from "@actions/core";
-import { createOctokit } from "../github/api/client";
+import { createOctokit, type Octokits } from "../github/api/client";
 import {
   isEntityContext,
   parseGitHubContext,
@@ -32,6 +32,7 @@ import {
   type GitHubReviewCommentPayload,
   type GitHubReviewCreateClient,
 } from "../github/operations/reviews";
+import { applyReviewThreadFollowUp } from "../github/operations/review-thread-follow-up";
 
 export const MAX_GITHUB_REVIEW_COMMENTS = 30;
 export const MAX_GITHUB_REVIEW_BODY_BYTES = 60 * 1024;
@@ -287,6 +288,7 @@ export async function run(
   options: {
     context?: ParsedGitHubContext;
     client?: GitHubReviewClient;
+    threadClient?: Octokits;
   } = {},
 ): Promise<GitHubPostResults> {
   const context = options.context ?? parseGitHubContext();
@@ -354,6 +356,43 @@ export async function run(
     summaryBody: parsed.summaryBody,
     failures: posted.failures,
   };
+
+  const resolveFixedThreads =
+    process.env.RESOLVE_FIXED_REVIEW_THREADS === "true";
+  const reviewOtherBotComments =
+    process.env.REVIEW_OTHER_BOT_COMMENTS === "true";
+  if (resolveFixedThreads || reviewOtherBotComments) {
+    try {
+      const token = process.env.GITHUB_TOKEN;
+      if (!options.threadClient && !token) {
+        throw new Error("GITHUB_TOKEN is required for review-thread follow-up");
+      }
+      const client = options.threadClient ?? createOctokit(token!);
+      results.threadFollowUp = await applyReviewThreadFollowUp({
+        client,
+        owner: context.repository.owner,
+        repo: context.repository.repo,
+        prNumber: context.entityNumber,
+        decisionsPath:
+          process.env.REVIEW_THREAD_DECISIONS_PATH ??
+          path.join(promptsDir(), "review_thread_decisions.json"),
+        resolveFixedThreads,
+        reviewOtherBotComments,
+        droidLogins: process.env.DROID_REVIEW_BOT_LOGINS,
+        otherBotLogins: process.env.OTHER_REVIEW_BOT_LOGINS,
+      });
+    } catch (error) {
+      results.threadFollowUp = {
+        applied: 0,
+        skipped: 0,
+        failed: 1,
+        failures: [errorMessage(error)],
+      };
+    }
+    for (const failure of results.threadFollowUp.failures) {
+      core.warning(`Review-thread follow-up failed: ${failure}`);
+    }
+  }
 
   const resultsPath = githubPostResultsFilePath();
   await fs.mkdir(path.dirname(resultsPath), { recursive: true });

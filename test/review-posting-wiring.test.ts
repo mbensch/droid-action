@@ -30,6 +30,19 @@ describe("review safety wiring", () => {
     );
   });
 
+  it("keeps automatic thread follow-up opt-in in the main action", () => {
+    const action = loadAction("action.yml");
+
+    expect(action.inputs.resolve_fixed_review_threads.default).toBe("false");
+    expect(action.inputs.review_other_bot_comments.default).toBe("false");
+    expect(
+      stepById(action, "prepare_validator").env.RESOLVE_FIXED_REVIEW_THREADS,
+    ).toContain("automatic_review");
+    expect(
+      stepById(action, "post_review").env.REVIEW_OTHER_BOT_COMMENTS,
+    ).toContain("automatic_review");
+  });
+
   // The validator keeps `Execute` and reads the untrusted PR diff, so it must
   // never hold a GitHub credential; only the deterministic post step may.
   it("withholds GITHUB_TOKEN from the validator process in the main action", () => {
@@ -68,6 +81,16 @@ describe("review safety wiring", () => {
       expect(stepById(action, "post_review").env.GITHUB_TOKEN).toBeDefined();
     });
   }
+
+  it("exposes thread follow-up only on the reusable code-review action", () => {
+    const action = loadAction("review/action.yml");
+
+    expect(action.inputs.resolve_fixed_review_threads.default).toBe("false");
+    expect(action.inputs.review_other_bot_comments.default).toBe("false");
+    expect(
+      stepById(action, "post_review").env.RESOLVE_FIXED_REVIEW_THREADS,
+    ).toContain("resolve_fixed_review_threads");
+  });
 
   it("exposes max_turns through the reusable base action", () => {
     const action = loadAction("base-action/action.yml");

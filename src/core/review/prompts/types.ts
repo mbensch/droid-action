@@ -103,4 +103,13 @@ export interface ReviewPromptContext {
   includeSuggestions: boolean;
   /** Spawn security-reviewer subagent during Pass 1 (candidates only) */
   securityReviewEnabled: boolean;
+  /** GitHub-only, opt-in follow-up for unresolved inline review threads. */
+  threadFollowUp?: {
+    threadsPath: string;
+    decisionsPath: string;
+    resolveFixedDroidThreads: boolean;
+    reviewOtherBotComments: boolean;
+    droidLogins: string[];
+    otherBotLogins: string[];
+  };
 }

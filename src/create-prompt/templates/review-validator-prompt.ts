@@ -21,6 +21,15 @@ export function generateReviewValidatorPrompt(
       ? String(context.githubContext.entityNumber)
       : "unknown";
 
+  const resolveFixedDroidThreads =
+    process.env.RESOLVE_FIXED_REVIEW_THREADS === "true";
+  const reviewOtherBotComments =
+    process.env.REVIEW_OTHER_BOT_COMMENTS === "true";
+  const parseLogins = (value: string | undefined, defaults: string[]) =>
+    (value ? value.split(",") : defaults)
+      .map((login) => login.trim().toLowerCase())
+      .filter(Boolean);
+
   return generateValidatorPrompt({
     terminology: GITHUB_TERMINOLOGY,
     postingMode: "file",
@@ -45,5 +54,27 @@ export function generateReviewValidatorPrompt(
       "$RUNNER_TEMP/droid-prompts/review_validated.json",
     includeSuggestions: context.includeSuggestions !== false,
     securityReviewEnabled: process.env.SECURITY_REVIEW_ENABLED === "true",
+    ...(context.reviewArtifacts?.threadsPath &&
+    (resolveFixedDroidThreads || reviewOtherBotComments)
+      ? {
+          threadFollowUp: {
+            threadsPath: context.reviewArtifacts.threadsPath,
+            decisionsPath:
+              process.env.REVIEW_THREAD_DECISIONS_PATH ??
+              "$RUNNER_TEMP/droid-prompts/review_thread_decisions.json",
+            resolveFixedDroidThreads,
+            reviewOtherBotComments,
+            droidLogins: parseLogins(process.env.DROID_REVIEW_BOT_LOGINS, [
+              "factory-droid[bot]",
+            ]),
+            otherBotLogins: parseLogins(process.env.OTHER_REVIEW_BOT_LOGINS, [
+              "claude[bot]",
+              "claude-code[bot]",
+              "cursor[bot]",
+              "cursorreview[bot]",
+            ]),
+          },
+        }
+      : {}),
   });
 }

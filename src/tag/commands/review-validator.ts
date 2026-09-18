@@ -43,6 +43,10 @@ export async function prepareReviewValidatorMode(options: {
     diffPath: `${promptsDir}/pr.diff`,
     commentsPath: `${promptsDir}/existing_comments.json`,
     descriptionPath: `${promptsDir}/pr_description.txt`,
+    ...((process.env.RESOLVE_FIXED_REVIEW_THREADS === "true" ||
+      process.env.REVIEW_OTHER_BOT_COMMENTS === "true") && {
+      threadsPath: `${promptsDir}/review_threads.json`,
+    }),
   };
 
   const includeSuggestions = process.env.INCLUDE_SUGGESTIONS !== "false";

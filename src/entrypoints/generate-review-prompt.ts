@@ -96,6 +96,10 @@ async function run() {
       title: prData.title,
       body: prData.body,
       githubToken,
+      includeReviewThreads:
+        reviewType === "code" &&
+        (process.env.RESOLVE_FIXED_REVIEW_THREADS === "true" ||
+          process.env.REVIEW_OTHER_BOT_COMMENTS === "true"),
     });
 
     // Select prompt generator based on review type

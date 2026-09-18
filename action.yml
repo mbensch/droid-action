@@ -59,6 +59,22 @@ inputs:
     description: "Automatically run the review flow for pull request contexts without requiring an explicit @droid review command. Only supported for PR-related events."
     required: false
     default: "false"
+  resolve_fixed_review_threads:
+    description: "On automatic code-review passes, resolve unresolved Droid inline review threads whose findings are now fixed."
+    required: false
+    default: "false"
+  review_other_bot_comments:
+    description: "On automatic code-review passes, reply once to valid or invalid Claude/Cursor inline review comments."
+    required: false
+    default: "false"
+  droid_review_bot_logins:
+    description: "Comma-separated trusted GitHub logins whose root review comments may be resolved."
+    required: false
+    default: "factory-droid[bot]"
+  other_review_bot_logins:
+    description: "Comma-separated trusted GitHub logins whose inline comments Droid may disposition."
+    required: false
+    default: "claude[bot],claude-code[bot],cursor[bot],cursorreview[bot]"
   automatic_security_review:
     description: "Automatically run the security review flow for pull request contexts without requiring an explicit @droid security command. Only supported for PR-related events."
     required: false
@@ -253,6 +269,10 @@ runs:
         ADDITIONAL_PERMISSIONS: ${{ inputs.additional_permissions }}
         DROID_ARGS: ${{ inputs.droid_args }}
         INCLUDE_SUGGESTIONS: ${{ inputs.include_suggestions }}
+        RESOLVE_FIXED_REVIEW_THREADS: ${{ inputs.automatic_review == 'true' && inputs.resolve_fixed_review_threads == 'true' }}
+        REVIEW_OTHER_BOT_COMMENTS: ${{ inputs.automatic_review == 'true' && inputs.review_other_bot_comments == 'true' }}
+        DROID_REVIEW_BOT_LOGINS: ${{ inputs.droid_review_bot_logins }}
+        OTHER_REVIEW_BOT_LOGINS: ${{ inputs.other_review_bot_logins }}
         ALL_INPUTS: ${{ toJson(inputs) }}
 
     - name: Install Base Action Dependencies
@@ -372,6 +392,10 @@ runs:
         REVIEW_MODEL: ${{ inputs.review_model }}
         REASONING_EFFORT: ${{ inputs.reasoning_effort }}
         INCLUDE_SUGGESTIONS: ${{ inputs.include_suggestions }}
+        RESOLVE_FIXED_REVIEW_THREADS: ${{ inputs.automatic_review == 'true' && inputs.resolve_fixed_review_threads == 'true' }}
+        REVIEW_OTHER_BOT_COMMENTS: ${{ inputs.automatic_review == 'true' && inputs.review_other_bot_comments == 'true' }}
+        DROID_REVIEW_BOT_LOGINS: ${{ inputs.droid_review_bot_logins }}
+        OTHER_REVIEW_BOT_LOGINS: ${{ inputs.other_review_bot_logins }}
 
     - name: Run Droid Exec (validator)
       id: droid_validator
@@ -413,6 +437,10 @@ runs:
         REVIEW_VALIDATED_PATH: ${{ inputs.review_validated_path }}
         REVIEW_DIFF_PATH: ${{ runner.temp }}/droid-prompts/pr.diff
         REVIEW_POST_RESULTS_PATH: ${{ runner.temp }}/droid-prompts/review_post_results.json
+        RESOLVE_FIXED_REVIEW_THREADS: ${{ inputs.automatic_review == 'true' && inputs.resolve_fixed_review_threads == 'true' }}
+        REVIEW_OTHER_BOT_COMMENTS: ${{ inputs.automatic_review == 'true' && inputs.review_other_bot_comments == 'true' }}
+        DROID_REVIEW_BOT_LOGINS: ${{ inputs.droid_review_bot_logins }}
+        OTHER_REVIEW_BOT_LOGINS: ${{ inputs.other_review_bot_logins }}
 
     - name: Update comment with job link
       if: steps.prepare.outputs.contains_trigger == 'true' && steps.prepare.outputs.steward_skipped != 'true' && steps.prepare.outputs.droid_comment_id && github.event_name != 'workflow_run' && always()

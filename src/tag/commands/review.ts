@@ -91,6 +91,9 @@ export async function prepareReviewMode({
     title: prData.title,
     body: prData.body,
     githubToken,
+    includeReviewThreads:
+      process.env.RESOLVE_FIXED_REVIEW_THREADS === "true" ||
+      process.env.REVIEW_OTHER_BOT_COMMENTS === "true",
   });
 
   const includeSuggestions = process.env.INCLUDE_SUGGESTIONS !== "false";

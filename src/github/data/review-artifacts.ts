@@ -3,6 +3,7 @@ import { writeFile, mkdir } from "fs/promises";
 import type { Octokits } from "../api/client";
 import type { ReviewArtifacts } from "../../create-prompt/types";
 import { retryWithBackoff } from "../../utils/retry";
+import { fetchAndStoreReviewThreads } from "./review-threads";
 
 const DIFF_MAX_BUFFER = 50 * 1024 * 1024; // 50MB buffer for large diffs
 
@@ -157,21 +158,32 @@ export async function computeReviewArtifacts(opts: {
   title: string;
   body: string;
   githubToken?: string;
+  includeReviewThreads?: boolean;
 }): Promise<ReviewArtifacts> {
-  const [diffPath, commentsPath, descriptionPath] = await Promise.all([
-    computeAndStoreDiff(opts.baseRef, opts.tempDir, {
-      githubToken: opts.githubToken,
-      prNumber: opts.prNumber,
-    }),
-    fetchAndStoreComments(
-      opts.octokit,
-      opts.owner,
-      opts.repo,
-      opts.prNumber,
-      opts.tempDir,
-    ),
-    storeDescription(opts.title, opts.body, opts.tempDir),
-  ]);
+  const [diffPath, commentsPath, descriptionPath, threadsPath] =
+    await Promise.all([
+      computeAndStoreDiff(opts.baseRef, opts.tempDir, {
+        githubToken: opts.githubToken,
+        prNumber: opts.prNumber,
+      }),
+      fetchAndStoreComments(
+        opts.octokit,
+        opts.owner,
+        opts.repo,
+        opts.prNumber,
+        opts.tempDir,
+      ),
+      storeDescription(opts.title, opts.body, opts.tempDir),
+      opts.includeReviewThreads
+        ? fetchAndStoreReviewThreads(
+            opts.octokit,
+            opts.owner,
+            opts.repo,
+            opts.prNumber,
+            opts.tempDir,
+          )
+        : Promise.resolve(undefined),
+    ]);
 
-  return { diffPath, commentsPath, descriptionPath };
+  return { diffPath, commentsPath, descriptionPath, threadsPath };
 }

@@ -220,6 +220,29 @@ jobs:
 
 Set `automatic_review: true` to run code reviews automatically on non-draft PRs. Set `automatic_security_review: true` to additionally run a STRIDE-based security review concurrently on every non-draft PR.
 
+Automatic code-review passes can also follow up on existing inline review
+threads. Both behaviors are disabled by default:
+
+```yaml
+with:
+  automatic_review: true
+  resolve_fixed_review_threads: true
+  review_other_bot_comments: true
+```
+
+`resolve_fixed_review_threads` resolves an unresolved Droid thread only when
+the validator finds concrete evidence that the reported problem is fixed.
+`review_other_bot_comments` evaluates unresolved comments from configured
+Claude and Cursor bot accounts, then replies once with `Droid agrees.` or
+`Droid disagrees: <Explanation>`. It does not resolve another bot's thread.
+
+The defaults recognize `factory-droid[bot]`, `claude[bot]`,
+`claude-code[bot]`, `cursor[bot]`, and `cursorreview[bot]`. Override
+`droid_review_bot_logins` or `other_review_bot_logins` with comma-separated
+GitHub logins when your apps use different accounts. Keep the workflow's
+per-PR `concurrency` group, as shown above, to prevent overlapping review
+passes. These features require `pull-requests: write`.
+
 ## Using the Commands
 
 ### `@droid fill`
@@ -343,15 +366,19 @@ To leave comments and approvals on your PRs, Droid needs a GitHub token. There a
 
 ### Review Configuration
 
-| Input                         | Default | Purpose                                                                                              |
-| ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------- |
-| `automatic_review`            | `false` | Automatically run code review on PRs without requiring `@droid review`.                              |
-| `review_depth`                | `deep`  | Review depth preset: `shallow` (fast) or `deep` (thorough). See [Review Depth](#review-depth) below. |
-| `review_model`                | `""`    | Override the model for code review. When empty, determined by `review_depth`.                        |
-| `reasoning_effort`            | `""`    | Override reasoning effort for review. When empty, determined by `review_depth`.                      |
-| `review_candidates_max_turns` | `100`   | Stop candidate generation after this many assistant turns.                                           |
-| `review_validator_max_turns`  | `40`    | Stop validation after this many assistant turns.                                                     |
-| `fill_model`                  | `""`    | Override the model used for PR description fill.                                                     |
+| Input                          | Default                | Purpose                                                                                              |
+| ------------------------------ | ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| `automatic_review`             | `false`                | Automatically run code review on PRs without requiring `@droid review`.                              |
+| `resolve_fixed_review_threads` | `false`                | Resolve earlier Droid inline findings that current code conclusively fixes.                          |
+| `review_other_bot_comments`    | `false`                | Reply once with Droid's disposition on configured AI-bot inline comments.                            |
+| `droid_review_bot_logins`      | `factory-droid[bot]`   | Trusted Droid author logins eligible for thread resolution.                                          |
+| `other_review_bot_logins`      | Claude/Cursor defaults | Trusted AI-bot author logins eligible for disposition replies.                                       |
+| `review_depth`                 | `deep`                 | Review depth preset: `shallow` (fast) or `deep` (thorough). See [Review Depth](#review-depth) below. |
+| `review_model`                 | `""`                   | Override the model for code review. When empty, determined by `review_depth`.                        |
+| `reasoning_effort`             | `""`                   | Override reasoning effort for review. When empty, determined by `review_depth`.                      |
+| `review_candidates_max_turns`  | `100`                  | Stop candidate generation after this many assistant turns.                                           |
+| `review_validator_max_turns`   | `40`                   | Stop validation after this many assistant turns.                                                     |
+| `fill_model`                   | `""`                   | Override the model used for PR description fill.                                                     |
 
 ### Review Depth
 
