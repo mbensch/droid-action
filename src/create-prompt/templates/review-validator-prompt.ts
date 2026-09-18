@@ -11,6 +11,11 @@
 import { generateValidatorPrompt } from "../../core/review/prompts/validator";
 import { GITHUB_TERMINOLOGY } from "../terminology";
 import type { PreparedContext } from "../types";
+import {
+  configuredBotLogins,
+  DEFAULT_DROID_REVIEW_BOT_LOGINS,
+  DEFAULT_OTHER_REVIEW_BOT_LOGINS,
+} from "../../github/review-bot-identities";
 
 export function generateReviewValidatorPrompt(
   context: PreparedContext,
@@ -25,11 +30,6 @@ export function generateReviewValidatorPrompt(
     process.env.RESOLVE_FIXED_REVIEW_THREADS === "true";
   const reviewOtherBotComments =
     process.env.REVIEW_OTHER_BOT_COMMENTS === "true";
-  const parseLogins = (value: string | undefined, defaults: string[]) =>
-    (value ? value.split(",") : defaults)
-      .map((login) => login.trim().toLowerCase())
-      .filter(Boolean);
-
   return generateValidatorPrompt({
     terminology: GITHUB_TERMINOLOGY,
     postingMode: "file",
@@ -64,15 +64,14 @@ export function generateReviewValidatorPrompt(
               "$RUNNER_TEMP/droid-prompts/review_thread_decisions.json",
             resolveFixedDroidThreads,
             reviewOtherBotComments,
-            droidLogins: parseLogins(process.env.DROID_REVIEW_BOT_LOGINS, [
-              "factory-droid[bot]",
-            ]),
-            otherBotLogins: parseLogins(process.env.OTHER_REVIEW_BOT_LOGINS, [
-              "claude[bot]",
-              "claude-code[bot]",
-              "cursor[bot]",
-              "cursorreview[bot]",
-            ]),
+            droidLogins: configuredBotLogins(
+              process.env.DROID_REVIEW_BOT_LOGINS,
+              DEFAULT_DROID_REVIEW_BOT_LOGINS,
+            ),
+            otherBotLogins: configuredBotLogins(
+              process.env.OTHER_REVIEW_BOT_LOGINS,
+              DEFAULT_OTHER_REVIEW_BOT_LOGINS,
+            ),
           },
         }
       : {}),

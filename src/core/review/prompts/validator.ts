@@ -149,12 +149,12 @@ Write this separate artifact to \`${threadFollowUp.decisionsPath}\`:
 Rules:
 * ${
         threadFollowUp.resolveFixedDroidThreads
-          ? `Evaluate unresolved threads whose root author login is one of: ${threadFollowUp.droidLogins.join(", ")}. Emit \`resolve\` only with concrete evidence in current code that the exact finding is fixed. Outdated anchors, author assertions, and uncertainty are not fixes.`
+          ? `Evaluate unresolved threads whose root author is a GitHub Bot with normalized login in: ${threadFollowUp.droidLogins.join(", ")}. GitHub may omit the REST-style \`[bot]\` suffix in GraphQL; the listed values are normalized. Emit \`resolve\` only with concrete evidence in current code that the exact finding is fixed. Outdated anchors, author assertions, and uncertainty are not fixes.`
           : "Do not emit any `resolve` decisions."
       }
 * ${
         threadFollowUp.reviewOtherBotComments
-          ? `Evaluate each otherwise-unanswered comment authored by: ${threadFollowUp.otherBotLogins.join(", ")}. Emit \`reply\` with \`verdict: "agree"\` when its technical claim was valid at the reviewed commit, even if later fixed. Emit \`verdict: "disagree"\` and a concise explanation only when the claim is invalid. Skip uncertain cases.`
+          ? `Evaluate each otherwise-unanswered comment authored by a GitHub Bot with normalized login in: ${threadFollowUp.otherBotLogins.join(", ")}. Emit \`reply\` with \`verdict: "agree"\` when its technical claim was valid at the reviewed commit, even if later fixed. Emit \`verdict: "disagree"\` and a concise explanation only when the claim is invalid. Skip uncertain cases.`
           : "Do not emit any `reply` decisions."
       }
 * Use only IDs and body hashes present in the snapshot. Do not resolve another bot's thread.

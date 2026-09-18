@@ -237,7 +237,9 @@ Claude and Cursor bot accounts, then replies once with `Droid agrees.` or
 `Droid disagrees: <Explanation>`. It does not resolve another bot's thread.
 
 The defaults recognize `factory-droid[bot]`, `claude[bot]`,
-`claude-code[bot]`, `cursor[bot]`, and `cursorreview[bot]`. Override
+`claude-code[bot]`, `cursor[bot]`, and `cursorreview[bot]`. GitHub GraphQL
+may return these Bot actors without the `[bot]` suffix; the action normalizes
+that exact suffix while still requiring the actor type to be `Bot`. Override
 `droid_review_bot_logins` or `other_review_bot_logins` with comma-separated
 GitHub logins when your apps use different accounts. Keep the workflow's
 per-PR `concurrency` group, as shown above, to prevent overlapping review

@@ -8,6 +8,7 @@ export type ReviewThreadComment = {
   body: string;
   bodyHash: string;
   authorLogin: string | null;
+  authorType: string | null;
   createdAt: string;
   replyToId: string | null;
   commitOid: string | null;
@@ -35,7 +36,7 @@ type RawComment = {
   id: string;
   databaseId: number;
   body: string;
-  author: { login: string } | null;
+  author: { login: string; __typename: string } | null;
   createdAt: string;
   replyTo: { id: string } | null;
   commit: { oid: string } | null;
@@ -62,7 +63,7 @@ const THREADS_QUERY = `
             comments(first: 100) {
               nodes {
                 id databaseId body createdAt
-                author { login }
+                author { __typename login }
                 replyTo { id }
                 commit { oid }
                 originalCommit { oid }
@@ -84,7 +85,7 @@ const COMMENTS_QUERY = `
         comments(first: 100, after: $after) {
           nodes {
             id databaseId body createdAt
-            author { login }
+            author { __typename login }
             replyTo { id }
             commit { oid }
             originalCommit { oid }
@@ -103,6 +104,7 @@ function normalizeComment(comment: RawComment): ReviewThreadComment {
     body: comment.body,
     bodyHash: createHash("sha256").update(comment.body).digest("hex"),
     authorLogin: comment.author?.login ?? null,
+    authorType: comment.author?.__typename ?? null,
     createdAt: comment.createdAt,
     replyToId: comment.replyTo?.id ?? null,
     commitOid: comment.commit?.oid ?? comment.originalCommit?.oid ?? null,

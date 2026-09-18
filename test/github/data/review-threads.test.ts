@@ -5,7 +5,7 @@ const comment = (id: string, databaseId: number) => ({
   id,
   databaseId,
   body: `body ${id}`,
-  author: { login: "factory-droid[bot]" },
+  author: { __typename: "Bot", login: "factory-droid" },
   createdAt: "2026-09-17T00:00:00Z",
   replyTo: null,
   commit: { oid: "abc1234" },

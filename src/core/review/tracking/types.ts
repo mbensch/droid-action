@@ -58,6 +58,11 @@ export type ReviewPostResults = {
     skipped: number;
     failed: number;
     failures: string[];
+    skips: Array<{
+      action: "artifact" | "resolve" | "reply";
+      targetId: string | null;
+      reason: string;
+    }>;
   };
 };
 

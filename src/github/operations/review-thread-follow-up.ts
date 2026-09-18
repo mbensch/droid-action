@@ -5,6 +5,12 @@ import {
   type ReviewThread,
   type ReviewThreadComment,
 } from "../data/review-threads";
+import {
+  configuredBotLogins,
+  DEFAULT_DROID_REVIEW_BOT_LOGINS,
+  DEFAULT_OTHER_REVIEW_BOT_LOGINS,
+  isConfiguredBot,
+} from "../review-bot-identities";
 
 export const DISPOSITION_MARKER_PREFIX = "<!-- droid-disposition:";
 
@@ -30,6 +36,13 @@ export type ThreadFollowUpResult = {
   skipped: number;
   failed: number;
   failures: string[];
+  skips: ThreadFollowUpSkip[];
+};
+
+export type ThreadFollowUpSkip = {
+  action: "artifact" | "resolve" | "reply";
+  targetId: string | null;
+  reason: string;
 };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -46,20 +59,32 @@ export function parseThreadDecisions(raw: string): {
   headSha: string | null;
   decisions: ThreadDecision[];
   skipped: number;
+  skipReasons: string[];
 } {
   let value: unknown;
   try {
     value = JSON.parse(raw);
   } catch {
-    return { headSha: null, decisions: [], skipped: 1 };
+    return {
+      headSha: null,
+      decisions: [],
+      skipped: 1,
+      skipReasons: ["decision artifact is not valid JSON"],
+    };
   }
   const root = record(value);
   if (!root || !Array.isArray(root.decisions)) {
-    return { headSha: null, decisions: [], skipped: 1 };
+    return {
+      headSha: null,
+      decisions: [],
+      skipped: 1,
+      skipReasons: ["decision artifact is missing a decisions array"],
+    };
   }
 
   const decisions: ThreadDecision[] = [];
   let skipped = 0;
+  const skipReasons: string[] = [];
   for (const item of root.decisions) {
     const decision = record(item);
     const threadId = decision && nonEmpty(decision.threadId);
@@ -67,12 +92,14 @@ export function parseThreadDecisions(raw: string): {
     const bodyHash = decision && nonEmpty(decision.bodyHash);
     if (!decision || !threadId || !commentId || !bodyHash) {
       skipped += 1;
+      skipReasons.push("decision is missing a target ID or body hash");
       continue;
     }
     if (decision.action === "resolve") {
       const evidence = nonEmpty(decision.evidence);
       if (!evidence) {
         skipped += 1;
+        skipReasons.push(`resolve decision ${commentId} has no evidence`);
         continue;
       }
       decisions.push({
@@ -92,6 +119,7 @@ export function parseThreadDecisions(raw: string): {
           : "";
       if (decision.verdict === "disagree" && !explanation) {
         skipped += 1;
+        skipReasons.push(`disagree decision ${commentId} has no explanation`);
         continue;
       }
       decisions.push({
@@ -104,21 +132,15 @@ export function parseThreadDecisions(raw: string): {
       });
     } else {
       skipped += 1;
+      skipReasons.push(`decision ${commentId} has an unsupported action`);
     }
   }
   return {
     headSha: nonEmpty(root.headSha),
     decisions,
     skipped,
+    skipReasons,
   };
-}
-
-function loginSet(value: string | undefined, defaults: string[]): Set<string> {
-  return new Set(
-    (value ? value.split(",") : defaults)
-      .map((login) => login.trim().toLowerCase())
-      .filter(Boolean),
-  );
 }
 
 function findTarget(
@@ -133,9 +155,21 @@ function findTarget(
   return thread && comment ? { thread, comment } : null;
 }
 
-function alreadyReplied(thread: ReviewThread, commentId: string): boolean {
+function alreadyReplied(
+  thread: ReviewThread,
+  commentId: string,
+  droidLogins: ReadonlySet<string>,
+): boolean {
   const marker = `${DISPOSITION_MARKER_PREFIX}${commentId} -->`;
-  return thread.comments.some((comment) => comment.body.includes(marker));
+  return thread.comments.some(
+    (comment) =>
+      comment.body.includes(marker) &&
+      isConfiguredBot({
+        login: comment.authorLogin,
+        actorType: comment.authorType,
+        configuredLogins: droidLogins,
+      }),
+  );
 }
 
 export async function applyReviewThreadFollowUp(options: {
@@ -154,16 +188,35 @@ export async function applyReviewThreadFollowUp(options: {
     skipped: 0,
     failed: 0,
     failures: [],
+    skips: [],
+  };
+  const skip = (
+    action: ThreadFollowUpSkip["action"],
+    targetId: string | null,
+    reason: string,
+  ): void => {
+    result.skipped += 1;
+    result.skips.push({ action, targetId, reason });
   };
   let raw: string;
   try {
     raw = await readFile(options.decisionsPath, "utf8");
-  } catch {
+  } catch (error) {
+    skip(
+      "artifact",
+      null,
+      error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+        ? "decision artifact is missing"
+        : `decision artifact could not be read: ${error instanceof Error ? error.message : String(error)}`,
+    );
     return result;
   }
 
   const parsed = parseThreadDecisions(raw);
-  result.skipped += parsed.skipped;
+  for (const reason of parsed.skipReasons) skip("artifact", null, reason);
   const snapshot = await fetchReviewThreads(
     options.client,
     options.owner,
@@ -174,43 +227,63 @@ export async function applyReviewThreadFollowUp(options: {
     !parsed.headSha ||
     parsed.headSha.toLowerCase() !== snapshot.headSha.toLowerCase()
   ) {
-    result.skipped += parsed.decisions.length;
+    for (const decision of parsed.decisions) {
+      skip(decision.action, decision.commentId, "review head changed");
+    }
     return result;
   }
 
-  const droidLogins = loginSet(options.droidLogins, ["factory-droid[bot]"]);
-  const otherBotLogins = loginSet(options.otherBotLogins, [
-    "claude[bot]",
-    "claude-code[bot]",
-    "cursor[bot]",
-    "cursorreview[bot]",
-  ]);
+  const droidLogins = new Set(
+    configuredBotLogins(options.droidLogins, DEFAULT_DROID_REVIEW_BOT_LOGINS),
+  );
+  const otherBotLogins = new Set(
+    configuredBotLogins(
+      options.otherBotLogins,
+      DEFAULT_OTHER_REVIEW_BOT_LOGINS,
+    ),
+  );
   const seen = new Set<string>();
 
   for (const decision of parsed.decisions) {
     const key = `${decision.action}:${decision.commentId}`;
     if (seen.has(key)) {
-      result.skipped += 1;
+      skip(decision.action, decision.commentId, "duplicate decision");
       continue;
     }
     seen.add(key);
     const target = findTarget(snapshot.threads, decision);
-    if (!target || target.thread.isResolved) {
-      result.skipped += 1;
+    if (!target) {
+      skip(decision.action, decision.commentId, "target is missing or changed");
+      continue;
+    }
+    if (target.thread.isResolved) {
+      skip(decision.action, decision.commentId, "thread is already resolved");
       continue;
     }
 
     try {
       if (decision.action === "resolve") {
         const root = target.thread.comments[0];
+        if (!options.resolveFixedThreads) {
+          skip("resolve", decision.commentId, "resolution is disabled");
+          continue;
+        }
+        if (!root || root.id !== target.comment.id) {
+          skip("resolve", decision.commentId, "target is not the thread root");
+          continue;
+        }
         if (
-          !options.resolveFixedThreads ||
-          !root ||
-          root.id !== target.comment.id ||
-          !root.authorLogin ||
-          !droidLogins.has(root.authorLogin.toLowerCase())
+          !isConfiguredBot({
+            login: root.authorLogin,
+            actorType: root.authorType,
+            configuredLogins: droidLogins,
+          })
         ) {
-          result.skipped += 1;
+          skip(
+            "resolve",
+            decision.commentId,
+            "root author is not a configured Droid bot",
+          );
           continue;
         }
         await options.client.graphql(
@@ -222,13 +295,26 @@ export async function applyReviewThreadFollowUp(options: {
           { threadId: target.thread.id },
         );
       } else {
+        if (!options.reviewOtherBotComments) {
+          skip("reply", decision.commentId, "bot-comment review is disabled");
+          continue;
+        }
         if (
-          !options.reviewOtherBotComments ||
-          !target.comment.authorLogin ||
-          !otherBotLogins.has(target.comment.authorLogin.toLowerCase()) ||
-          alreadyReplied(target.thread, target.comment.id)
+          !isConfiguredBot({
+            login: target.comment.authorLogin,
+            actorType: target.comment.authorType,
+            configuredLogins: otherBotLogins,
+          })
         ) {
-          result.skipped += 1;
+          skip(
+            "reply",
+            decision.commentId,
+            "target author is not a configured review bot",
+          );
+          continue;
+        }
+        if (alreadyReplied(target.thread, target.comment.id, droidLogins)) {
+          skip("reply", decision.commentId, "Droid already replied");
           continue;
         }
         const visibleBody =

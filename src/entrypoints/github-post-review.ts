@@ -387,7 +387,18 @@ export async function run(
         skipped: 0,
         failed: 1,
         failures: [errorMessage(error)],
+        skips: [],
       };
+    }
+    console.log(
+      `Review-thread follow-up: ${results.threadFollowUp.applied} applied, ` +
+        `${results.threadFollowUp.skipped} skipped, ${results.threadFollowUp.failed} failed.`,
+    );
+    for (const skipped of results.threadFollowUp.skips) {
+      core.warning(
+        `Review-thread follow-up skipped ${skipped.action}` +
+          `${skipped.targetId ? ` ${skipped.targetId}` : ""}: ${skipped.reason}`,
+      );
     }
     for (const failure of results.threadFollowUp.failures) {
       core.warning(`Review-thread follow-up failed: ${failure}`);
